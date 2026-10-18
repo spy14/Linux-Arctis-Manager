@@ -39,6 +39,17 @@ document is the spec to follow, not a proposal to re-litigate.
 
 ## 1. Versioning and channels
 
+### macOS settings app assets
+
+On the upstream repository (or forks with `ENABLE_LINUX_CI=true`), the tag-triggered release also calls `build-macos.yaml`, which tests and packages
+the standalone SwiftUI app on Apple Silicon and Intel runners. The release job
+waits for both builds and includes their versioned ZIPs and SHA-256 checksum files
+in the existing draft. These apps are ad-hoc signed, not Developer ID signed or
+notarized; no Apple secrets are configured. See [the macOS README](../macos/README.md)
+for manual builds, download selection and distribution limitations. Forks default
+to macOS-only CI; `mac-v*` tags use the independent `release-macos.yaml` workflow
+to create a draft with only macOS assets, without Linux/COPR prerequisites.
+
 The project already follows SemVer via the `VERSION` file and `vX.Y.Z[-prerelease]`
 git tags (e.g. `v3.0.0`, `v3.0.0-alpha4`). This maps directly onto two distribution
 channels:

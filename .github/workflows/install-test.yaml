@@ -10,13 +10,17 @@ on:
   pull_request:
 
 jobs:
+  # Forks run macOS only unless ENABLE_LINUX_CI is explicitly enabled.
   build-pkg:
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') }}
     uses: ./.github/workflows/build-pkg.yaml
 
   build-tarball:
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') }}
     uses: ./.github/workflows/build-tarball.yaml
 
   shell-lint:
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -27,6 +31,7 @@ jobs:
   # This is what proves the "build on an old glibc, run anywhere newer"
   # tarball really resolves its shared libraries on each target.
   installer-test:
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') }}
     needs: [build-pkg, build-tarball]
     runs-on: ubuntu-latest
 
@@ -78,6 +83,7 @@ jobs:
   # actually resolves depends=/Requires:/Depends: against that distro's
   # repos, catching a missing or wrong runtime dependency declaration.
   install-test:
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') }}
     needs: build-pkg
     runs-on: ubuntu-latest
 

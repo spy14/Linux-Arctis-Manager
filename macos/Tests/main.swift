@@ -1,0 +1,21 @@
+import Foundation
+let flat = ArctisProtocol.eq(Array(repeating: 0, count: 10))
+assert(flat.count == 64 && flat[0] == 0x33)
+assert(Array(flat[1...10]) == Array(repeating: 24, count: 10))
+let limits = ArctisProtocol.eq([-12, 12, -0.5, 0.5, 0, 0, 0, 0, 0, 0])
+assert(Array(limits[1...4]) == [0, 48, 23, 25])
+assert(ArctisProtocol.report(0x39, [3])[0...2] == [0x39, 3, 0])
+let headset = Headset(startMonitoring: false)
+headset.receive([0xb7, 2]); assert(headset.battery == 50)
+headset.receive([0xbb, 3]); assert(headset.charging == "On battery")
+headset.receive([0xb9, 3]); assert(headset.connected)
+headset.receive([0xb7, 255]); assert(headset.battery == nil)
+headset.receive([0xb9, 2]); assert(!headset.connected && headset.battery == nil)
+print("Protocol and status tests passed")
+if CommandLine.arguments.contains("--hardware") {
+    headset.connect()
+    RunLoop.current.run(until: Date().addingTimeInterval(4))
+    print("Hardware: \(headset.status), battery: \(String(describing: headset.battery)), \(headset.charging)")
+    assert(headset.connected, "Expected connected headset")
+}
+headset.disconnect()

@@ -1,0 +1,62 @@
+name: Release macOS (draft)
+
+on:
+  push:
+    tags: ['mac-v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-macos-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-macos.yaml
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: macos-*
+          merge-multiple: true
+          path: assets
+
+      - name: Create or update draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/macos-notes.md" <<'NOTES'
+          Arctis Settings for macOS 13 or newer.
+
+          - Apple Silicon (M-series): download the arm64 ZIP.
+          - Intel: download the x86_64 ZIP.
+          - Extract the ZIP and move Arctis Settings.app to Applications.
+
+          Prototype: headset settings and status only; no ChatMix audio routing.
+          Ad-hoc signed, not Apple-notarized. macOS may require approval in
+          System Settings → Privacy & Security before opening the downloaded app.
+          NOTES
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)
+            if [ "$draft" != true ]; then
+              echo 'Refusing to replace assets on a published release.' >&2
+              exit 1
+            fi
+            gh release upload "$RELEASE_TAG" assets/* --clobber
+          else
+            extra=()
+            if [[ "${RELEASE_TAG#mac-v}" == *-* ]]; then extra+=(--prerelease); fi
+            gh release create "$RELEASE_TAG" assets/* \
+              --verify-tag --draft "${extra[@]}" \
+              --title "Arctis Settings ${RELEASE_TAG#mac-v}" \
+              --notes-file "$RUNNER_TEMP/macos-notes.md"
+          fi

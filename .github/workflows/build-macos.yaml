@@ -1,0 +1,77 @@
+name: Build macOS app
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'macos/**'
+      - 'VERSION'
+      - '.github/workflows/build-macos.yaml'
+      - '.github/workflows/release.yaml'
+      - '.github/workflows/release-macos.yaml'
+  push:
+    branches: ['**']
+    paths:
+      - 'macos/**'
+      - 'VERSION'
+      - '.github/workflows/build-macos.yaml'
+      - '.github/workflows/release.yaml'
+      - '.github/workflows/release-macos.yaml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: macOS (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check runner architecture and select version
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          test "$(uname -m)" = "$EXPECTED_ARCH"
+          version=$(cat VERSION)
+          if [ "$REF_TYPE" = tag ]; then
+            version=${REF_NAME#mac-}
+            version=${version#v}
+          fi
+          echo "APP_VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Test protocol and status parsing (no headset required)
+        run: sh macos/test.sh
+
+      - name: Build, sign and package app
+        run: sh macos/package.sh
+
+      - name: Verify packaged app
+        run: |
+          mkdir -p "$RUNNER_TEMP/arctis-unpacked"
+          archive=$(find macos/build/release -name '*.zip' -type f)
+          ditto -x -k "$archive" "$RUNNER_TEMP/arctis-unpacked"
+          codesign --verify --strict "$RUNNER_TEMP/arctis-unpacked/Arctis Settings.app"
+          plutil -lint "$RUNNER_TEMP/arctis-unpacked/Arctis Settings.app/Contents/Info.plist"
+          cd macos/build/release
+          shasum -a 256 -c ./*.sha256
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-${{ matrix.arch }}
+          path: |
+            macos/build/release/*.zip
+            macos/build/release/*.sha256
+          if-no-files-found: error

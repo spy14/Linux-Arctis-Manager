@@ -20,9 +20,11 @@ permissions:
   contents: write
 
 jobs:
+  # Forks run macOS only unless ENABLE_LINUX_CI is explicitly enabled.
   # Single source of truth for "which tag are we operating on" - the pushed
   # tag on a tag-push trigger, or the given input on a manual run.
   prep:
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') }}
     runs-on: ubuntu-latest
     outputs:
       ref: ${{ steps.pick.outputs.ref }}
@@ -34,19 +36,23 @@ jobs:
   # build across the full distro matrix, so a tag ships exactly what CI
   # already verified installs cleanly, not a separately-built copy.
   build-pkg:
-    if: ${{ github.event_name == 'push' }}
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') && (github.event_name == 'push') }}
     uses: ./.github/workflows/build-pkg.yaml
 
   build-tarball:
-    if: ${{ github.event_name == 'push' }}
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') && (github.event_name == 'push') }}
     uses: ./.github/workflows/build-tarball.yaml
+
+  build-macos:
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') && (github.event_name == 'push') }}
+    uses: ./.github/workflows/build-macos.yaml
 
   # Signs SHA256SUMS of the prebuilt tarball(s) with the maintainer's SSH
   # signing key (verified by scripts/install.sh with `ssh-keygen -Y verify`).
   # Runs in the protected `release-signing` environment so the key is only
   # reachable by an approved release run. See docs/release-pipeline.md.
   sign-tarball:
-    if: ${{ github.event_name == 'push' }}
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') && (github.event_name == 'push') }}
     needs: build-tarball
     runs-on: ubuntu-latest
     environment: release-signing
@@ -86,8 +92,8 @@ jobs:
           if-no-files-found: warn
 
   release:
-    if: ${{ github.event_name == 'push' }}
-    needs: [build-pkg, build-tarball, sign-tarball]
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') && (github.event_name == 'push') }}
+    needs: [build-pkg, build-tarball, sign-tarball, build-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -163,7 +169,7 @@ jobs:
   # full design (channel naming, secrets, one-time setup).
   publish-stable:
     needs: [prep, release]
-    if: ${{ !cancelled() && needs.prep.result == 'success' && (needs.release.result == 'success' || needs.release.result == 'skipped') && !contains(needs.prep.outputs.ref, '-') }}
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') && (!cancelled() && needs.prep.result == 'success' && (needs.release.result == 'success' || needs.release.result == 'skipped') && !contains(needs.prep.outputs.ref, '-')) }}
     uses: ./.github/workflows/copr-publish.yaml
     with:
       ref: ${{ needs.prep.outputs.ref }}
@@ -174,7 +180,7 @@ jobs:
 
   publish-unstable:
     needs: [prep, release]
-    if: ${{ !cancelled() && needs.prep.result == 'success' && (needs.release.result == 'success' || needs.release.result == 'skipped') }}
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') && (!cancelled() && needs.prep.result == 'success' && (needs.release.result == 'success' || needs.release.result == 'skipped')) }}
     uses: ./.github/workflows/copr-publish.yaml
     with:
       ref: ${{ needs.prep.outputs.ref }}

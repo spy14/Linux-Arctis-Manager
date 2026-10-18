@@ -5,12 +5,14 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Forks run macOS only unless ENABLE_LINUX_CI is explicitly enabled.
   # The prebuilt tarball scripts/install.sh installs into ~/.local. Built on
   # the *oldest* glibc we're willing to support (Ubuntu 22.04: 2.35) - the
   # same idea as a manylinux wheel: build old, run anywhere newer. The real
   # floor is measured from the binaries and written to manifest.txt, which is
   # what the installer actually checks against the host.
   build-tarball:
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') }}
     runs-on: ubuntu-latest
     container:
       image: ubuntu:22.04

@@ -8,7 +8,9 @@ on:
         value: ${{ jobs.resolve-matrix.outputs.matrix }}
 
 jobs:
+  # Forks run macOS only unless ENABLE_LINUX_CI is explicitly enabled.
   resolve-matrix:
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') }}
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.resolve.outputs.matrix }}
@@ -25,6 +27,7 @@ jobs:
   # hand-picked list in this workflow — so a wrong/missing declaration here
   # fails the build, same as it would for a real packager.
   build-pkg:
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') }}
     needs: resolve-matrix
     runs-on: ubuntu-latest
 

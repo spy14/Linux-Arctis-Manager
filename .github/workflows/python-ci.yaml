@@ -10,7 +10,9 @@ on:
   pull_request:
 
 jobs:
+  # Forks run macOS only unless ENABLE_LINUX_CI is explicitly enabled.
   python-ci:
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') }}
     runs-on: ubuntu-latest
 
     env:

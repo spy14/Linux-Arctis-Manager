@@ -19,8 +19,10 @@ on:
 # block a merge.
 
 jobs:
+  # Forks run macOS only unless ENABLE_LINUX_CI is explicitly enabled.
   # ── cargo-audit: Rust dependency CVE scan ─────────────────────────────────
   cargo-audit:
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') }}
     name: cargo audit (RustSec)
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -64,7 +66,7 @@ jobs:
   # ── bandit: Python security lint ──────────────────────────────────────────
   bandit:
     name: bandit (Python)
-    if: github.event_name != 'schedule'
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') && (github.event_name != 'schedule') }}
     runs-on: ubuntu-latest
     continue-on-error: true
     permissions:
@@ -103,7 +105,7 @@ jobs:
   # ── semgrep: pattern-based cross-language SAST ────────────────────────────
   semgrep:
     name: semgrep
-    if: github.event_name != 'schedule'
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') && (github.event_name != 'schedule') }}
     runs-on: ubuntu-latest
     continue-on-error: true
     permissions:
@@ -145,6 +147,7 @@ jobs:
 
   # ── pip-audit: Python dependency CVE scan ─────────────────────────────────
   pip-audit:
+    if: ${{ (github.repository == 'elegos/Linux-Arctis-Manager' || vars.ENABLE_LINUX_CI == 'true') }}
     name: pip-audit (PyPI)
     runs-on: ubuntu-latest
     continue-on-error: true
