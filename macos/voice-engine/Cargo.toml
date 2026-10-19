@@ -1,0 +1,23 @@
+[package]
+name = "arctis-voice-engine"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+
+[workspace]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+realfft = "3"
+rand = "0.10"
+rand_distr = "0.6"
+rubato = "5"
+audioadapter-buffers = "5"
+libloading = "0.9"
+tracing = "0.1"
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "load-dynamic", "cuda", "rocm", "openvino", "coreml", "tracing", "api-22"] }
+
+[dev-dependencies]
+tempfile = "3"

@@ -41,7 +41,10 @@ jobs:
           - Intel: download the x86_64 ZIP.
           - Extract the ZIP and move Arctis Settings.app to Applications.
 
-          Prototype: headset settings and status only; no ChatMix audio routing.
+          Experimental macOS port: headset settings, ChatMix, software EQ,
+          microphone processing, and AI voice conversion. ChatMix requires macOS
+          14.2+. Processed microphone output requires BlackHole; AI features
+          require ONNX Runtime and voice-model setup in the app.
           Ad-hoc signed, not Apple-notarized. macOS may require approval in
           System Settings → Privacy & Security before opening the downloaded app.
           NOTES

@@ -18,6 +18,8 @@ final class Headset: ObservableObject {
     @Published var status = "Looking for your dongle…"
     @Published var battery: Int?
     @Published var charging = ""
+    @Published var gameMix: Int?
+    @Published var chatMix: Int?
     @Published var message = "Changes are sent only when you click Apply."
     private var manager: IOHIDManager?
     private var command: IOHIDDevice?
@@ -43,7 +45,7 @@ final class Headset: ObservableObject {
         if let manager { IOHIDManagerClose(manager, 0) }
         devices.removeAll(); command = nil; manager = nil
         buffers.forEach { $0.deallocate() }; buffers.removeAll()
-        connected = false; battery = nil; charging = ""
+        connected = false; battery = nil; charging = ""; gameMix = nil; chatMix = nil
     }
     func connect() {
         disconnect()
@@ -83,9 +85,12 @@ final class Headset: ObservableObject {
         switch bytes[0] {
         case 0xb0 where bytes.count >= 4:
             updateConnection(bytes[1])
+            guard connected else { return }
             // Initial status may contain placeholders. Live events supersede it.
             if battery == nil { updateBattery(bytes[2]) }
             if charging.isEmpty { updateCharging(bytes[3]) }
+            if bytes.count >= 6 { updateMix(game: bytes[4], chat: bytes[5]) }
+        case 0x45 where bytes.count >= 3: updateMix(game: bytes[1], chat: bytes[2])
         case 0xb7: updateBattery(bytes[1])
         case 0xb9: updateConnection(bytes[1])
         case 0xbb: updateCharging(bytes[1])
@@ -95,7 +100,13 @@ final class Headset: ObservableObject {
     private func updateConnection(_ value: UInt8) {
         connected = value == 3
         status = connected ? "Headset connected" : "Dongle connected · turn on your headset"
-        if !connected { battery = nil; charging = "" }
+        if !connected { battery = nil; charging = ""; gameMix = nil; chatMix = nil }
+    }
+    private func updateMix(game: UInt8, chat: UInt8) {
+        // Initial status sometimes contains 0xff placeholders. Keep the last
+        // real dial event rather than displaying a bogus 255 percent gain.
+        guard game <= 100, chat <= 100 else { return }
+        gameMix = Int(game); chatMix = Int(chat)
     }
     private func updateBattery(_ value: UInt8) { battery = value <= 4 ? Int(value) * 25 : nil }
     private func updateCharging(_ value: UInt8) {

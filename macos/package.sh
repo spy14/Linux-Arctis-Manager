@@ -2,6 +2,7 @@
 set -eu
 cd "$(dirname "$0")"
 sh build.sh
+sh build-voice.sh
 APP="build/Arctis Settings.app"
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print :LAMReleaseVersion' "$APP/Contents/Info.plist")
 ARCH=$(uname -m)

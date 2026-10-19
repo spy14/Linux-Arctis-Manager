@@ -6,6 +6,11 @@ on:
   pull_request:
     paths:
       - 'macos/**'
+      - 'daemon/engine/src/vc/**'
+      - 'daemon/engine/src/vc_dsp.rs'
+      - 'daemon/engine/src/vc_rvc_config.rs'
+      - 'daemon/engine/src/vc_onnxruntime_detect.rs'
+      - 'src/linux_arctis_manager/voice_changer/rvc/**'
       - 'VERSION'
       - '.github/workflows/build-macos.yaml'
       - '.github/workflows/release.yaml'
@@ -14,6 +19,11 @@ on:
     branches: ['**']
     paths:
       - 'macos/**'
+      - 'daemon/engine/src/vc/**'
+      - 'daemon/engine/src/vc_dsp.rs'
+      - 'daemon/engine/src/vc_rvc_config.rs'
+      - 'daemon/engine/src/vc_onnxruntime_detect.rs'
+      - 'src/linux_arctis_manager/voice_changer/rvc/**'
       - 'VERSION'
       - '.github/workflows/build-macos.yaml'
       - '.github/workflows/release.yaml'
@@ -52,6 +62,14 @@ jobs:
           fi
           echo "APP_VERSION=$version" >> "$GITHUB_ENV"
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Test shared AI inference engine
+        run: cargo test --locked --manifest-path macos/voice-engine/Cargo.toml
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/macos/build/voice-target
+
       - name: Test protocol and status parsing (no headset required)
         run: sh macos/test.sh
 
@@ -63,7 +81,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/arctis-unpacked"
           archive=$(find macos/build/release -name '*.zip' -type f)
           ditto -x -k "$archive" "$RUNNER_TEMP/arctis-unpacked"
-          codesign --verify --strict "$RUNNER_TEMP/arctis-unpacked/Arctis Settings.app"
+          codesign --verify --deep --strict "$RUNNER_TEMP/arctis-unpacked/Arctis Settings.app"
+          test -x "$RUNNER_TEMP/arctis-unpacked/Arctis Settings.app/Contents/MacOS/arctis-voice-engine"
+          test -x "$RUNNER_TEMP/arctis-unpacked/Arctis Settings.app/Contents/MacOS/arctis-cli"
           plutil -lint "$RUNNER_TEMP/arctis-unpacked/Arctis Settings.app/Contents/Info.plist"
           cd macos/build/release
           shasum -a 256 -c ./*.sha256

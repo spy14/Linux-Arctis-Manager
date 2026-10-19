@@ -1,17 +1,26 @@
 # Arctis Settings for macOS (prototype)
 
-A standalone SwiftUI settings app for the Arctis 7+ USB dongle. The Linux app is unchanged. Requires macOS 13+ and Xcode Command Line Tools to build; no Python, Rust, Homebrew or third-party libraries are needed.
+A native SwiftUI app for the Arctis 7+ USB dongle, with Core Audio routing,
+software EQ, microphone effects, and the Linux project's shared RVC inference
+engine. Headset settings require macOS 13+; ChatMix process taps require macOS
+14.2+. Both Apple Silicon and Intel builds are produced by CI.
 
 ## Build and open
 
-From the repository root:
+Requires Xcode Command Line Tools, Python 3 for bundle metadata, and a current
+Rust toolchain for the AI helper. From the repository root:
 
 ```sh
 sh macos/build.sh
+sh macos/build-voice.sh
 open "macos/build/Arctis Settings.app"
 ```
 
-The build targets the local CPU architecture and is ad-hoc signed for local use, not notarized for distribution. You can copy the resulting app to Applications.
+`build.sh` builds the app and CLI; `build-voice.sh` adds the shared Rust inference
+helper. `package.sh` runs both. The build targets the local CPU architecture and
+is ad-hoc signed, not notarized. No third-party libraries are required for the
+Swift app. AI conversion additionally needs ONNX Runtime and model files at
+runtime; the AI Models tab provides setup and import/download controls.
 
 ## GitHub Actions builds and releases
 
@@ -83,27 +92,133 @@ APP_VERSION=3.0.0-beta2 sh macos/package.sh
 Packages are written to `macos/build/release/`. GitHub-hosted tests cover command
 encoding and status parsing; they cannot verify physical headset behavior.
 
-## Use
+## Features and use
 
-Connect the dongle and turn on the headset. Choose values and click the corresponding Apply button. **Save to headset** sends the flash-save command for settings already applied; it does not apply unsent choices. Nothing is applied automatically on launch or reconnection.
+### Headset
 
-The controls cover sidetone, microphone gain, mute LED brightness, ten-band hardware EQ (±12 dB, 0.5 dB steps), and inactivity timeout. Local choices are retained, but the headset does not expose readback for these settings. Initial values are draft choices, not detected device settings. Battery reporting is in 25% steps.
+Connect the dongle and turn on the headset. Choose values and click Apply for
+sidetone, microphone gain, mute LED brightness, hardware EQ or inactivity timeout.
+**Apply all settings** applies a complete draft and remembers it for optional
+restoration. **Save to headset** sends the flash-save command for settings already
+applied; it does not apply unsent choices. No settings are read back by this model.
 
-ChatMix routing, software audio effects, firmware updates and pairing are outside this prototype.
+Profiles can be named, imported/exported as JSON, linked to an application, and
+applied from the menu bar. Application switching and reconnect restoration are
+opt-in. Only a successfully applied complete profile is eligible for automatic
+restoration. Individual-section changes do not replace that complete profile.
+Launch at login uses macOS Login Items. Pairing has an explicit confirmation.
 
-## Verification
+### ChatMix and software EQ
 
-On the connected 1038:220e dongle, verified HID enumeration, successful status query, connection events, 50% battery and discharging status. The SwiftUI app was opened and visually inspected. Setting payloads are unit-tested against the repository definitions; audible effects and flash persistence still need user testing. No settings were changed during verification.
+Choose an output, select the applications belonging to Chat, and enable routing.
+Other applications use Media. macOS requests system-audio capture permission.
+The physical dial controls both channel gains, or disable “Follow the dial” to
+use the software balance slider. Each channel has independent 10/15-band EQ and
+saved presets. Stop routing to return applications to their normal audio paths.
+
+The implementation uses private Core Audio taps, private aggregate devices, and
+AVAudioEngine. It does not change the system default output. Audio is processed
+locally and not recorded by ChatMix. Changing chat-app selection recreates taps;
+new processes are detected every three seconds. Output disconnection stops
+routing. A crash/exit releases the private taps and their muting behavior.
+
+### Microphone and voice effects
+
+Install [BlackHole 2ch](https://github.com/ExistentialAudio/BlackHole#installation-instructions),
+then choose a physical microphone and BlackHole as the virtual output. Select
+BlackHole as the microphone in Discord, Zoom or another receiving app. The app
+never installs a system driver automatically.
+
+Available processing: Apple voice-processing noise suppression, high-pass filter,
+noise gate, compressor, makeup gain, pitch, delay, reverb, distortion, and a
+modulated multi-voice chorus. Stop processing before changing settings; successful
+settings are retained for the next session. Processing always starts explicitly.
+Device configuration changes stop processing so the user can review the route.
+
+**Platform difference:** noise suppression and conventional effects use Apple's
+Audio Units, not Linux's RNNoise/LADSPA plugins. They provide corresponding
+functions but are not acoustically identical, and some advanced Linux controls
+have different equivalents. Media/chat routing uses per-app capture rather than
+two public PipeWire sinks. Apps sharing a process/bundle identifier cannot always
+be separated, and protected audio may be unavailable to capture.
+
+### AI voice conversion
+
+1. In AI Models, choose a Python 3 interpreter and install dependencies into the
+   app's private environment (downloads PyTorch, NumPy, ONNX, ONNX Runtime and
+   ONNXScript). Nothing is installed until the user confirms.
+2. Download base models. ContentVec and RMVPE come from the upstream model release
+   and are checked against its SHA-256 manifest before use.
+3. Import an RVC v2 `.onnx` model, or import a trusted `.pth` checkpoint and export
+   it to ONNX. The bundled exporter validates its output against PyTorch.
+   The synthesizer must include the exporter's `sample_rate` metadata.
+4. Optionally import a same-stem `.index` file for retrieval. Configure pitch,
+   formants, envelope blend, input drive, limiter and pitch smoothing. CPU is the
+   default; Core ML can be requested with CPU fallback. An ONNX Runtime library
+   exposing API 22 or later is required (the UI also accepts a manually selected
+   dylib).
+5. Enable AI conversion in Microphone and start processing. Live conversion runs
+   in a separate Rust process using the exact shared Linux inference/DSP sources.
+   If it falls behind, the app stops instead of accumulating unlimited latency.
+
+Hugging Face browsing supports model search, file listing and downloads. Optional
+read tokens are stored in macOS Keychain and stripped from cross-host CDN
+redirects. Private/gated models still require the user's account to have access.
+Model files can be moved to Trash. ZIP model bundles are not imported automatically;
+extract them and import their PTH/ONNX/index files.
+
+For calibration, record a 10-second sample from the system default microphone
+(start with a second of silence), render it through the selected voice, and
+compare original/converted recordings. Existing PCM16 or float32 WAV files can
+also be rendered. The offline helper uses the shared noise-floor calibration
+and flushes its look-ahead buffers to preserve the end of speech. Recordings and
+model files stay under `~/Library/Application Support/Arctis Settings/Models`.
+
+### Command line
+
+The app bundle includes `Contents/MacOS/arctis-cli`:
 
 ```sh
-xcrun swiftc -module-cache-path macos/build/module-cache macos/Sources/Headset.swift macos/Tests/main.swift -o macos/build/tests
-macos/build/tests
-# Optional: requires connected, powered-on headset and USB access.
-macos/build/tests --hardware
+"macos/build/Arctis Settings.app/Contents/MacOS/arctis-cli" status
+"macos/build/Arctis Settings.app/Contents/MacOS/arctis-cli" profiles
+"macos/build/Arctis Settings.app/Contents/MacOS/arctis-cli" apply-profile "My profile"
+```
+
+Also supports `save`, `pair`, and `stop-pairing`. Audio routing is controlled by
+the graphical app; the CLI is for headset status and settings.
+
+## Verification and remaining acceptance work
+
+Automated checks: HID report encoding/status parsing, malformed profile rejection,
+profile persistence, EQ resampling, bounded audio ring wrap/overflow/underrun
+behavior with address/undefined-behavior sanitizers, and the shared Rust inference
+unit tests. Both Swift architectures compile. CI builds/tests the native helper
+on each architecture and verifies the app archive/signatures/checksums.
+
+The earlier settings build was verified against the connected 1038:220e dongle
+(connection, battery and charging events). The expanded audio paths still require
+live acceptance testing with system-audio and microphone permissions, a connected
+headset, BlackHole and a real voice model. The seven upstream model-backed tests
+remain ignored unless the corresponding models/runtime/test audio are provided.
+Compilation and unit tests do not establish audio quality, dropout behavior,
+flash persistence, or successful live AI conversion. This remains an experimental
+port, not a claim of verified, exact Linux parity.
+
+```sh
+sh macos/test.sh
+cargo test --locked --manifest-path macos/voice-engine/Cargo.toml
+sh macos/test.sh --hardware  # optional connected-headset check
 ```
 
 ## Transport details
 
-Uses Apple's IOHID APIs directly, opening vendor usage pages 0xFFC0 and 0xFF00 without exclusive access. Commands use 0xFFC0. macOS output payloads are 64 bytes, without Linux's synthetic leading report-ID zero. Live incoming reports likewise begin with the command byte. Device definitions: `daemon/device-configs/arctis_7_plus.yaml` and `base_arctis_7_plus.yaml`.
+Uses IOHID APIs directly, opening vendor usage pages 0xFFC0 and 0xFF00 without
+exclusive access. Commands use 0xFFC0. macOS output payloads are 64 bytes without
+Linux's synthetic leading report-ID zero. Incoming reports begin with the command
+byte. Definitions: `daemon/device-configs/arctis_7_plus.yaml` and
+`base_arctis_7_plus.yaml`.
 
-The Destiny 2 PID 0x2236 is included but untested. Multiple connected dongles are not supported. USB command success means the OS accepted the transfer, not that settings were read back. Reconnect uses a five-second retry timer; the refresh button reconnects immediately.
+The Destiny 2 PID 0x2236 is included but untested. Other headset families and
+multiple connected dongles are not supported by this macOS frontend. Battery
+reporting is in 25% steps. USB command success means the OS accepted the transfer,
+not that settings were read back. Reconnection retries every five seconds.
